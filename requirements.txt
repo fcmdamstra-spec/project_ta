@@ -1,0 +1,8 @@
+# Install: pip install -r requirements.txt
+#
+# After installing, run these one-time setup commands:
+#   python -m spacy download en_core_web_sm
+#   python -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
+
+spacy>=3.7
+nltk>=3.8
