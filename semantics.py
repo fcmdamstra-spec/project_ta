@@ -1,13 +1,15 @@
 """
 Part 2 - Semantic Analysis
 
+Created by: Cas, S5414865
+
 Classifies Reddit posts as 'story' or 'non-story' using four semantic features:
-  1. Coreference resolution  - rule-based proxy via PERSON entities + nearby pronouns
+  1. Coreference resolution   - using corefee to count coreference chains
   2. Named-entity recognition - spaCy doc.ents
   3. WordNet noun count       - NLTK WordNet
   4. WSD ambiguity proportion - proportion of content words with multiple synsets
 
-Each feature produces one rule. The four rules vote; majority wins.
+Each feature produces one rule. The four rules votes, 2 or more votes for story and the text is determined to be a story.
 """
 
 from nltk.corpus import wordnet
