@@ -37,7 +37,7 @@ def get_sentence_sentiments(text: str) -> list[float]:
     """
 
     doc = nlp_sentiment(text)
-    return[sent._polarity.compound for sent in doc.sents]
+    return[sent._.polarity.compound for sent in doc.sents]
 
 def emotional_range(sent_scores: list[float]) -> float:
     """
@@ -77,10 +77,6 @@ def emotional_range_decision(text: str) -> str:
     on the development set.
     Rule: if emotional_range >= 0.9, predict 'story'.
     Dev accuracy: 55.0%
- 
-    Works when: the text contains clear positive and negative moments.
-    Fails when: a story has a consistent tone throughout, or a non-story uses
-    strong positive/negative language (e.g. a rant or a glowing recommendation).
     """
 
     scores = get_sentence_sentiments(text)
@@ -96,10 +92,6 @@ def sentiment_shift_decision(text: str) -> str:
     in the observation data.
     Rule: if number of shifts >= 5, predict 'story'.
     Dev accuracy: 57.5%
- 
-    Works when: the narrative structure causes frequent tone alternation.
-    Fails when: a long non-story post also has many shifts, or a short story maintains 
-    a consistent emotional tone.
     """
 
     scores = get_sentence_sentiments(text)
@@ -115,10 +107,6 @@ def sentence_count_decision(text: str) -> str:
     on the development set. Stories need space to develop a plot.
     Rule: if sentence count >= 12, predict 'story'.
     Dev accuracy: 62.1%
- 
-    Works when: the text is long because it tells a narrative.
-    Fails when: a long informational post exceeds the threshold, 
-    or a short but clearly story-structured post falls below it.
     """
 
     scores = get_sentence_sentiments(text)
@@ -145,7 +133,7 @@ def determine_pragmatic_story(text: str) -> str:
     if sentiment_shift_decision(text) == 'story':
         votes += 1
     if sentence_count_decision(text) == 'story':
-        votes +1 
+        votes +=1 
     return 'story' if votes >= 2 else 'non-story'
 
 
@@ -172,7 +160,7 @@ def main():
     story_sents, nonstory_sents = [], []
 
     df = pd.read_csv(DEV_CSV)
-    for _, row in df.itterrows():
+    for _, row in df.iterrows():
         text = row['content']
         label = row['label']
 
