@@ -211,6 +211,47 @@ def main():
     print(f'average wsd count for non-story: {sum(non_story_wsd)/non_stories}')
     print(f'percentage all semantic rules correct: {round(correct/total *100, 1)}')
 
+    # Write the pattern report
+    with open("semantic_patterns.txt", "w", encoding="utf-8") as f:
+        f.write(f"""
+SEMANTIC PATTERNS
+
+1. Coreference chains
+Observation: stories averaged {sum(story_coref)/stories:.1f} chains vs {sum(non_story_coref)/non_stories:.1f} for non-stories.
+Method:      coreferee -> doc._.coref_chains (number of coreference chains)
+Rule:        5 or more chains -> predict 'story'.
+Accuracy:    {round(coref_correct/total*100, 1)}%
+Works when:  a story tracks several recurring characters or entities.
+Fails when:  a non-story keeps referring to one person, or a short story has few entities.
+
+2. Named entities
+Observation: stories averaged {sum(story_ner)/stories:.1f} entities vs {sum(non_story_ner)/non_stories:.1f} for non-stories.
+Method:      spaCy NER -> doc.ents (number of named entities)
+Rule:        9 or more entities -> predict 'story'.
+Accuracy:    {round(ner_correct/total*100, 1)}%
+Works when:  a narrative names people, places and times.
+Fails when:  an informational post is full of names, or a story has an unnamed setting.
+
+3. WordNet nouns
+Observation: stories averaged {sum(story_wnnoun)/stories:.1f} WordNet nouns vs {sum(non_story_wnnoun)/non_stories:.1f} for non-stories.
+Method:      spaCy POS + WordNet -> NOUN tokens that have a synset
+Rule:        40 or more WordNet nouns -> predict 'story'.
+Accuracy:    {round(wnnoun_correct/total*100, 1)}%
+Works when:  stories use many concrete everyday nouns.
+Fails when:  a long technical non-story has many nouns, or a short story has few.
+
+4. Word-sense ambiguity (WSD)
+Observation: stories averaged {sum(story_wsd)/stories:.1f} ambiguous words vs {sum(non_story_wsd)/non_stories:.1f} for non-stories.
+Method:      WordNet -> content words with more than one synset
+Rule:        72 or more ambiguous words -> predict 'story'.
+Accuracy:    {round(wsd_correct/total*100, 1)}%
+Works when:  everyday narrative vocabulary is highly polysemous.
+Fails when:  a non-story is long (more words = more ambiguous ones), or a story uses simple words.
+
+Combined (2+ of 4 rules vote 'story'): {round(correct/total*100, 1)}%
+""")
+    print("wrote semantic_patterns.txt")
+
 
 if __name__ == "__main__":
     main()
