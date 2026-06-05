@@ -69,9 +69,11 @@ def avg_sent_length(doc):
 Part 4: classification rules derived form Part 3
 '''
 
-def determine_syntax_story(doc):
-    """ 
-    Predicts story or nonstory based on: Rules obtained from syntactic feature analysis:
+def syntax_breakdown(doc):
+    """
+    Returns each syntactic sub-rule decision plus the combined syntax label.
+
+    Rules obtained from syntactic feature analysis:
     - POS TAGS: stories use more (12,2%) PRON tags than nonstories (10.8%).  PROPN only appears in non-story top 10 (3.4%).
     - DEPENDENCIES: not very big differences
     - NOUN CHUNKS: avg of noun chunk differs ~ 34%, stories: 76, nonstories: 57
@@ -81,34 +83,26 @@ def determine_syntax_story(doc):
     Rule 2 (POS): if PROPN% > 3%, predict: non-story
     Rule 3 (NOUN CHUNKS): if avg noun chunks > 65, predict: story
 
-    Voting: majority of 3 decides label.
+    Voting: 2 or more 'story' votes (majority of 3) makes the combined label 'story'.
+    Single source of truth used by both determine_syntax_story and the logging in main.py.
     """
 
     _, pos_pct = count_pos(doc)
     chunk_count, _, _ = analyze_noun_chunk(doc)
 
-    votes_story    = 0
-    votes_nonstory = 0
+    decisions = {
+        'syntax_pron': 'story' if pos_pct.get('PRON', 0) > 11.5 else 'non-story',
+        'syntax_noun_chunk': 'story' if chunk_count > 65 else 'non-story',
+        'syntax_propn': 'non-story' if pos_pct.get('PROPN', 0) > 3.0 else 'story',
+    }
+    votes = list(decisions.values()).count('story')
+    decisions['syntax'] = 'story' if votes >= 2 else 'non-story'
+    return decisions
 
-    # Rule: PRON frequency
-    if pos_pct.get('PRON', 0) > 11.5:
-        votes_story += 1
-    else:
-        votes_nonstory += 1
 
-    # Rule: noun chunk count
-    if chunk_count > 65:
-        votes_story += 1
-    else:
-        votes_nonstory += 1
-
-    # Rule: PROPN frequency
-    if pos_pct.get('PROPN', 0) > 3.0:
-        votes_nonstory += 1
-    else:
-        votes_story += 1
-
-    return 'story' if votes_story > votes_nonstory else 'non-story'
+def determine_syntax_story(doc):
+    """ Predicts story or non-story by majority vote over the syntactic sub-rules. """
+    return syntax_breakdown(doc)['syntax']
 
 '''
 Part 3: run feature tests on dev dataset to identify patterns

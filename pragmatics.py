@@ -42,7 +42,6 @@ def get_sentence_sentiments(text: str) -> list[float]:
 def emotional_range(sent_scores: list[float]) -> float:
     """
     The difference between the highest and lowest sentence-level compound scores.
- 
     A larger range indicates more emotional variety: the text swings between
     positive and negative, which is one of the characteristic of narrative stories.
     """
@@ -54,10 +53,9 @@ def emotional_range(sent_scores: list[float]) -> float:
 def count_sentiment_shifts(sent_scores: list[float]) -> int:
     """
     Count how many times the sentiment direction changes between consecutive sentences.
- 
     A shift is counted when a sentence's polarity category (positive / non-positive)
-    differs from the previous sentence. Stories tend to alternate between positive
-    and negative moments more than informational texts.
+    differs from the previous sentence. Stories have more variation between positive and negative moments than 
+    informational texts.
     """
 
     if len(sent_scores) < 2:
@@ -70,20 +68,15 @@ def count_sentiment_shifts(sent_scores: list[float]) -> int:
             shifts += 1
     return shifts
 
-
 #Individual decision rules
 
 def emotional_range_decision(text: str) -> str:
     """
     Rule 1: emotional range
-    Observation: Stories averaged an emotional range of 1.14 vs 1.04 for non-stories
+    Observation: Stories averaged an emotional range of 1.14 vs 1.04 for non-stor-*ies
     on the development set.
     Rule: if emotional_range >= 0.9, predict 'story'.
     Dev accuracy: 55.0%
- 
-    Works when: the text contains clear positive and negative moments.
-    Fails when: a story has a consistent tone throughout, or a non-story uses
-    strong positive/negative language (e.g. a rant or a glowing recommendation).
     """
 
     scores = get_sentence_sentiments(text)
@@ -96,13 +89,9 @@ def sentiment_shift_decision(text: str) -> str:
     Rule 2: Sentiment shifts.
  
     Observation: Stories averaged 5.60 sentiment shifts vs 4.46 for non-stories
-    on the development set.
+    in the observation data.
     Rule: if number of shifts >= 5, predict 'story'.
     Dev accuracy: 57.5%
- 
-    Works when: the narrative structure causes frequent tone alternation.
-    Fails when: a long non-story post (e.g. a multi-point argument) also has many shifts,
-    or a short story maintains a consistent emotional tone.
     """
 
     scores = get_sentence_sentiments(text)
@@ -118,10 +107,6 @@ def sentence_count_decision(text: str) -> str:
     on the development set. Stories need space to develop a plot.
     Rule: if sentence count >= 12, predict 'story'.
     Dev accuracy: 62.1%
- 
-    Works when: the text is long because it tells a narrative.
-    Fails when: a long informational post (e.g. a technical explanation) exceeds
-    the threshold, or a short but clearly story-structured post falls below it.
     """
 
     scores = get_sentence_sentiments(text)
@@ -131,13 +116,30 @@ def sentence_count_decision(text: str) -> str:
 
 #Combined decision (voting)
 
+def pragmatics_breakdown(text: str) -> dict:
+    """
+    Returns each pragmatic sub-rule decision plus the combined pragmatic label.
+    The 3 rules vote; 2 or more 'story' votes makes the combined label 'story'.
+    Single source of truth used by both determine_pragmatic_story and the logging
+    in main.py.
+    """
+    decisions = {
+        'emotional_range': emotional_range_decision(text),
+        'sentiment_shift': sentiment_shift_decision(text),
+        'sentence_count': sentence_count_decision(text),
+    }
+    votes = list(decisions.values()).count('story')
+    decisions['pragmatic'] = 'story' if votes >= 2 else 'non-story'
+    return decisions
+
+
 def determine_pragmatic_story(text: str) -> str:
     """
     Combine all three pragmatic rules using majority voting.
- 
+
     Two or more votes for 'story' → predict 'story', otherwise 'non-story'.
     Dev accuracy: 60.1%
- 
+
     The voting method reduces the impact of any single weak rule and
     provides more balanced performance across both classes.
     """
@@ -175,7 +177,7 @@ def main():
     story_sents, nonstory_sents = [], []
 
     df = pd.read_csv(DEV_CSV)
-    for _, row in df.itterrows():
+    for _, row in df.iterrows():
         text = row['content']
         label = row['label']
 

@@ -22,7 +22,7 @@ nlp = spacy.load('en_core_web_sm')
 nlp.add_pipe('coreferee')
 
 '''
-Part 1: determining numbers of story defining features, 
+Part 1: determining story or non-story per semantic method 
 '''
 
 def coref_story_decision(doc):
@@ -39,6 +39,7 @@ def coref_story_decision(doc):
         return 'story'
     else:
         return 'non-story'
+
     
 def ner_story_decision(doc):
     """
@@ -51,6 +52,7 @@ def ner_story_decision(doc):
         return 'story'
     else:
         return 'non-story'
+
     
 def count_wordnet_nouns(doc):
     """
@@ -65,6 +67,7 @@ def count_wordnet_nouns(doc):
     ]
     return len(wn_nouns)
 
+
 def wordnet_noun_story_decision(doc):
     '''
     Stories averaged 45.1 WordNet nouns vs 35.5 for non-stories
@@ -74,6 +77,7 @@ def wordnet_noun_story_decision(doc):
         return 'story'
     else:
         return 'non-story'
+
     
 def count_ambiguous_features(doc):
     """
@@ -93,21 +97,35 @@ def ambiguous_story_decision(doc):
         return 'story'
     else:
         return 'non-story'
+
+'''
+Part 2: Determining story or non-story by combing all different methods
+'''
     
+def semantics_breakdown(doc):
+    '''
+    Returns each semantic sub-rule decision plus the combined semantics label.
+    The 4 methods vote; 2 or more 'story' votes makes the combined label 'story'.
+    This is the single source of truth used by both determine_semantics_story and
+    the logging in main.py.
+    '''
+    decisions = {
+        'coref': coref_story_decision(doc),
+        'ner': ner_story_decision(doc),
+        'wordnet_noun': wordnet_noun_story_decision(doc),
+        'ambiguous': ambiguous_story_decision(doc),
+    }
+    votes = list(decisions.values()).count('story')
+    decisions['semantics'] = 'story' if votes >= 2 else 'non-story'
+    return decisions
+
+
 def determine_semantics_story(doc):
-    story = 0
-    if coref_story_decision(doc) == 'story':
-        story +=1
-    if ner_story_decision(doc) == 'story':
-        story +=1
-    if wordnet_noun_story_decision == 'story':
-        story += 1
-    if ambiguous_story_decision(doc) == 'story':
-        story +=1
-    if story >=2:
-        return 'story'
-    else:
-        return 'non-story'
+    '''
+    determine_semantics_story decides wheter a given stext tory (as spacy doc) is a story or not
+    It does so by letting each semantic method vote, since there are 4 methods the threshold for story is 2 or more
+    '''
+    return semantics_breakdown(doc)['semantics']
     
 
     
@@ -115,10 +133,9 @@ def determine_semantics_story(doc):
 DEV_CSV = "dev.csv"
 def main():
     '''
-    The main function in this script was used during testing and calibrating the other functions in semantics.py. 
+    The main function in this script was used during testing and calibrating the other functions in semantics.py.
     The eventual programm that determines story or non-story for the assignment can be found in main.py
     '''
-
     total = 0
     stories = 0
     correct = 0
@@ -193,6 +210,47 @@ def main():
     print(f'average wsd count for story: {sum(story_wsd)/stories}')
     print(f'average wsd count for non-story: {sum(non_story_wsd)/non_stories}')
     print(f'percentage all semantic rules correct: {round(correct/total *100, 1)}')
+
+    # Write the pattern report
+    with open("semantic_patterns.txt", "w", encoding="utf-8") as f:
+        f.write(f"""
+SEMANTIC PATTERNS
+
+1. Coreference chains
+Observation: stories averaged {sum(story_coref)/stories:.1f} chains vs {sum(non_story_coref)/non_stories:.1f} for non-stories.
+Method:      coreferee -> doc._.coref_chains (number of coreference chains)
+Rule:        5 or more chains -> predict 'story'.
+Accuracy:    {round(coref_correct/total*100, 1)}%
+Works when:  a story tracks several recurring characters or entities.
+Fails when:  a non-story keeps referring to one person, or a short story has few entities.
+
+2. Named entities
+Observation: stories averaged {sum(story_ner)/stories:.1f} entities vs {sum(non_story_ner)/non_stories:.1f} for non-stories.
+Method:      spaCy NER -> doc.ents (number of named entities)
+Rule:        9 or more entities -> predict 'story'.
+Accuracy:    {round(ner_correct/total*100, 1)}%
+Works when:  a narrative names people, places and times.
+Fails when:  an informational post is full of names, or a story has an unnamed setting.
+
+3. WordNet nouns
+Observation: stories averaged {sum(story_wnnoun)/stories:.1f} WordNet nouns vs {sum(non_story_wnnoun)/non_stories:.1f} for non-stories.
+Method:      spaCy POS + WordNet -> NOUN tokens that have a synset
+Rule:        40 or more WordNet nouns -> predict 'story'.
+Accuracy:    {round(wnnoun_correct/total*100, 1)}%
+Works when:  stories use many concrete everyday nouns.
+Fails when:  a long technical non-story has many nouns, or a short story has few.
+
+4. Word-sense ambiguity (WSD)
+Observation: stories averaged {sum(story_wsd)/stories:.1f} ambiguous words vs {sum(non_story_wsd)/non_stories:.1f} for non-stories.
+Method:      WordNet -> content words with more than one synset
+Rule:        72 or more ambiguous words -> predict 'story'.
+Accuracy:    {round(wsd_correct/total*100, 1)}%
+Works when:  stories are highly polysemous.
+Fails when:  a non-story is long (more words = more ambiguous ones), or a story uses simple words.
+
+Combined (2+ of 4 rules vote 'story'): {round(correct/total*100, 1)}%
+""")
+    print("wrote semantic_patterns.txt")
 
 
 if __name__ == "__main__":
