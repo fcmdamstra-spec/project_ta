@@ -245,7 +245,7 @@ Observation: stories averaged {sum(story_wsd)/stories:.1f} ambiguous words vs {s
 Method:      WordNet -> content words with more than one synset
 Rule:        72 or more ambiguous words -> predict 'story'.
 Accuracy:    {round(wsd_correct/total*100, 1)}%
-Works when:  everyday narrative vocabulary is highly polysemous.
+Works when:  stories are highly polysemous.
 Fails when:  a non-story is long (more words = more ambiguous ones), or a story uses simple words.
 
 Combined (2+ of 4 rules vote 'story'): {round(correct/total*100, 1)}%
