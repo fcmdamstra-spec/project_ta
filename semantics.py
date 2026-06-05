@@ -22,7 +22,7 @@ nlp = spacy.load('en_core_web_sm')
 nlp.add_pipe('coreferee')
 
 '''
-Part 1: determining numbers of story defining features, 
+Part 1: determining story or non-story per semantic method 
 '''
 
 def coref_story_decision(doc):
@@ -39,6 +39,7 @@ def coref_story_decision(doc):
         return 'story'
     else:
         return 'non-story'
+
     
 def ner_story_decision(doc):
     """
@@ -51,6 +52,7 @@ def ner_story_decision(doc):
         return 'story'
     else:
         return 'non-story'
+
     
 def count_wordnet_nouns(doc):
     """
@@ -65,6 +67,7 @@ def count_wordnet_nouns(doc):
     ]
     return len(wn_nouns)
 
+
 def wordnet_noun_story_decision(doc):
     '''
     Stories averaged 45.1 WordNet nouns vs 35.5 for non-stories
@@ -74,6 +77,7 @@ def wordnet_noun_story_decision(doc):
         return 'story'
     else:
         return 'non-story'
+
     
 def count_ambiguous_features(doc):
     """
@@ -93,21 +97,35 @@ def ambiguous_story_decision(doc):
         return 'story'
     else:
         return 'non-story'
+
+'''
+Part 2: Determining story or non-story by combing all different methods
+'''
     
+def semantics_breakdown(doc):
+    '''
+    Returns each semantic sub-rule decision plus the combined semantics label.
+    The 4 methods vote; 2 or more 'story' votes makes the combined label 'story'.
+    This is the single source of truth used by both determine_semantics_story and
+    the logging in main.py.
+    '''
+    decisions = {
+        'coref': coref_story_decision(doc),
+        'ner': ner_story_decision(doc),
+        'wordnet_noun': wordnet_noun_story_decision(doc),
+        'ambiguous': ambiguous_story_decision(doc),
+    }
+    votes = list(decisions.values()).count('story')
+    decisions['semantics'] = 'story' if votes >= 2 else 'non-story'
+    return decisions
+
+
 def determine_semantics_story(doc):
-    story = 0
-    if coref_story_decision(doc) == 'story':
-        story +=1
-    if ner_story_decision(doc) == 'story':
-        story +=1
-    if wordnet_noun_story_decision == 'story':
-        story += 1
-    if ambiguous_story_decision(doc) == 'story':
-        story +=1
-    if story >=2:
-        return 'story'
-    else:
-        return 'non-story'
+    '''
+    determine_semantics_story decides wheter a given stext tory (as spacy doc) is a story or not
+    It does so by letting each semantic method vote, since there are 4 methods the threshold for story is 2 or more
+    '''
+    return semantics_breakdown(doc)['semantics']
     
 
     
@@ -115,10 +133,9 @@ def determine_semantics_story(doc):
 DEV_CSV = "dev.csv"
 def main():
     '''
-    The main function in this script was used during testing and calibrating the other functions in semantics.py. 
+    The main function in this script was used during testing and calibrating the other functions in semantics.py.
     The eventual programm that determines story or non-story for the assignment can be found in main.py
     '''
-
     total = 0
     stories = 0
     correct = 0
