@@ -18,6 +18,7 @@ Order:
 import spacy
 from collections import Counter
 import pandas as pd
+import sys 
 
 nlp = spacy.load('en_core_web_sm')
 DEV_CSV = "dev.csv"
@@ -76,9 +77,9 @@ def determine_syntax_story(doc):
     - NOUN CHUNKS: avg of noun chunk differs ~ 34%, stories: 76, nonstories: 57
     - SENTENCE LENGTH: not useful, almost the same.
 
-    Rule (POS): if n of PRON% > 11.5%, predict: story
-    Rule (POS): if PROPN% > 3%, predict: non-story
-    Rule (NOUN CHUNKS): if avg noun chunks > 65, predict: story
+    Rule 1 (POS): if n of PRON% > 11.5%, predict: story
+    Rule 2 (POS): if PROPN% > 3%, predict: non-story
+    Rule 3 (NOUN CHUNKS): if avg noun chunks > 65, predict: story
 
     Voting: majority of 3 decides label.
     """
@@ -165,10 +166,32 @@ def main():
             nonstory_sent_lengths.append(length)  
             nonstory_pos_pct.update(pos_pct)
 
+    #Accuracy: 
+    rule1_correct = 0
+    rule2_correct = 0
+    rule3_correct = 0
+    voting_correct = 0
+    total = len(df)
 
+    for _, row in df.iterrows():
+        doc = nlp(row['content'])
+        label = row['label']
+        _, pos_pct = count_pos(doc)
+        chunk_count, _, _ = analyze_noun_chunk(doc)
+        if (pos_pct.get('PRON', 0) > 11.5) == (label == 'story'): 
+            rule1_correct += 1
+        if (pos_pct.get('PROPN', 0) <= 3.0) == (label == 'story'): 
+            rule2_correct += 1
+        if (chunk_count > 65) == (label == 'story'): 
+            rule3_correct += 1
+        if determine_syntax_story(doc) == label: 
+            voting_correct += 1
+
+    f = open("syntax_patterns.txt", "w", encoding="utf-8")
+    sys.stdout = f
 
     # print results / feature
-    print("POS TAGS\n")
+    print(" OBSERVATION FROM DEVELOPMENT DATA:\n POS TAGS\n")
     print("Story: \n") 
     for tag, count in story_pos.most_common(10):
         avg_pct = story_pos_pct[tag] / stories
@@ -211,5 +234,61 @@ def main():
     print(
         f"Average sentence length in Non-Stories: "
         f"{sum(nonstory_sent_lengths)/len(nonstory_sent_lengths)}")
+    
+
+    print(f"""
+    SYNTAX PATTERNS
+
+    1. POS:
+    
+    - Pronoun (PRON) frequency
+    Observation: stories averaged {story_pos_pct['PRON']/stories:.1f}% PRON vs {nonstory_pos_pct['PRON']/nonstories:.1f}% for non-stories.
+    Method:      spaCy token.pos_
+    Rule:        If PRON% > 11.5% predict 'story'
+    Accuracy:    {rule1_correct/total*100:.1f}%
+    Works when:  text is a first-person narrative for example using "I, me, we".
+    Fails when:  a non-story is conversational and also uses many pronouns.
+
+    - Proper noun (PROPN) frequency
+    Observation 2: non-stories averaged {nonstory_pos_pct['PROPN']/nonstories:.1f}% PROPN vs {story_pos_pct['PROPN']/stories:.1f}% for stories.
+    Method:      spaCy token.pos_
+    Rule:        If PROPN% > 3.0% predict 'non-story'
+    Accuracy:    {rule2_correct/total*100:.1f}%
+    Works when:  text has many named entities (names, people, things)
+    Fails when:  a story mentions real names or places frequently.
+
+    2. DEPENDENCIES - not used!
+    Observation: see dependency distribution printed above.
+    Method:      spaCy token.dep_, doc.noun_chunks
+    Rule:        not included because distributions too similar between classes.
+    Accuracy:    N/A
+    Works when:  N/A
+    Fails when:  N/A
+
+    3. Noun chunk count - used as rule
+    Observation: stories averaged {sum(story_chunks)/len(story_chunks):.1f} chunks vs {sum(nonstory_chunks)/len(nonstory_chunks):.1f} for non-stories.
+    Method:      spaCy doc.noun_chunks
+    Rule:        If the noun chunk count > 65 predict 'story'
+    Accuracy:    {rule3_correct/total*100:.1f}%
+    Works when:  longer narrative texts have more noun phrases.
+    Fails when:  a long non-story has equally many noun chunks.
+
+    4. Sentence length - not used!
+    Observation: stories averaged {sum(story_sent_lengths)/len(story_sent_lengths):.1f} tokens/sent vs {sum(nonstory_sent_lengths)/len(nonstory_sent_lengths):.1f} for non-stories.
+    Method:      spaCy doc.sents
+    Rule:        not included, difference too small.
+    Accuracy:    N/A
+    Works when:  N/A
+    Fails when:  N/A
+
+    Combined voting accuracy (majority of 3 rules): {voting_correct/total*100:.1f}%
+    """)
+
+    f.close()
+    sys.stdout = sys.__stdout__  
+
+
 if __name__ == "__main__":
     main()
+
+
