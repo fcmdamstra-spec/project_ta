@@ -4,14 +4,14 @@ Part 1 - Syntactical Analysis
 Created by: Fleur, S4109287
 
 Classifies Reddit posts as 'story' or 'non-story' using four syntactic features:
-  1. Part of Speech (POS) - tagging: Spacy token.pos_ 
-  2. Syntactic Parsing (dependency + noun chunks): Spacy token.dep_, Spacy doc.noun_chunks
+  1. Part of Speech (POS) - tagging (frequency/ratio and n-grams): Spacy token.pos_ 
+  2. Syntactic Parsing (dependency): Spacy token.dep_, token.pos_
   3. Sentence length
 
 Order: 
   Part 2, Feature extraction functions
   Part 3, Development data analysis (main)
-  Part 4, Classification rules, derived from 3 (determine_syntax_story)
+  Part 4, Classification rules, derived from 3 (syntax_breakdown)
   
 """
 
@@ -23,10 +23,12 @@ import sys
 nlp = spacy.load('en_core_web_sm')
 DEV_CSV = "dev.csv"
 
+
 ''' 
-Part 2: feature extraction functions (POS, Parsing, Chunks & Sentence length) to determine rules
+Part 2: feature extraction functions (POS, Dependency Parsing & Sentence length) to determine rules
 '''
 
+### 1: POS ANALYSIS: FREQUENCY AND N_GRAMS
 def count_pos(doc):
     """ Returns raw POS-tag counts and percentages """
 
@@ -38,24 +40,42 @@ def count_pos(doc):
     pos_pct = {tag: (count/total) * 100 for tag, count in pos_count.items()}
     return pos_count, pos_pct
 
+def pos_ngrams(doc):
+    """ Returns POS tag bigrams and trigrams (sequence pattern - bigrams, trigrams)"""
+    bigrams = Counter()
+    trigrams = Counter()
 
-def analyze_noun_chunk(doc):
-    """ Returns , for each noun chunk:
-    - noun chunk text
-    - root word
-    - dependency role
-    - head it connects to """
-    
-    chunk_deps = Counter()
-    chunk_texts = Counter()
-    for chunk in doc.noun_chunks:
-        chunk_deps[chunk.root.dep_] += 1
-        if len(chunk) > 1:
-            chunk_texts[chunk.text.lower()] += 1
-    
-    return len(list(doc.noun_chunks)), chunk_deps, chunk_texts
+    tags = [token.pos_ for token in doc]
+
+    for i in range(len(tags)-1):
+        bigrams[(tags[i], tags[i+1])] += 1
+    for i in range(len(tags)-2):
+        trigrams[(tags[i], tags[i+1], tags[i+2])] += 1
+
+    return bigrams, trigrams
 
 
+### 2: DEPENDENCY PARSING
+def dependency_pos_analysis(doc):
+    """ Returns Descriptive analysis of dependency + POS combinations
+     1. dep_counts: raw dependency frequencies
+     2. dep_pos: (dependency, POS) combinations
+    """
+
+    dep_counts = Counter()
+    dep_pos = Counter()
+
+    for token in doc:
+        dep_counts[token.dep_] += 1  # raw dependency label frequency
+        dep_pos[(token.dep_, token.pos_)] += 1 #dependency + POS of token 
+
+    total= len(doc)
+    dep_pos_pct = {pair: (count / total) * 100 for pair, count in dep_pos.items()} #frequency
+
+    return dep_counts, dep_pos, dep_pos_pct
+
+
+### 3: SENTENCE LENGTH
 def avg_sent_length(doc):
     """ Returns average sentence length for a text"""
     sentence_length = []
@@ -65,35 +85,35 @@ def avg_sent_length(doc):
     return sum(sentence_length) / len(sentence_length) if sentence_length else 0
 
 
+
 '''
 Part 4: classification rules derived form Part 3
 '''
 
 def syntax_breakdown(doc):
-    """
-    Returns each syntactic sub-rule decision plus the combined syntax label.
+    """ Returns each syntactic sub-rule decision plus the combined syntax label.
 
     Rules obtained from syntactic feature analysis:
-    - POS TAGS: stories use more (12,2%) PRON tags than nonstories (10.8%).  PROPN only appears in non-story top 10 (3.4%).
-    - DEPENDENCIES: not very big differences
-    - NOUN CHUNKS: avg of noun chunk differs ~ 34%, stories: 76, nonstories: 57
+    - POS TAGS: stories use more (12,2%) PRON tags than nonstories (10.8%).  PROPN in non-story (3.4%), vs story: 2,7%.
+    - DEPENDENCY  PARSING: DEP-POS: ('advmod', 'ADV'): stories (5.71%), non-story: (4.88%).
     - SENTENCE LENGTH: not useful, almost the same.
 
     Rule 1 (POS): if n of PRON% > 11.5%, predict: story
     Rule 2 (POS): if PROPN% > 3%, predict: non-story
-    Rule 3 (NOUN CHUNKS): if avg noun chunks > 65, predict: story
+    Rule 3 (DEPENDENCY): if advmod+ADV% > 5.3% predict story
+
 
     Voting: 2 or more 'story' votes (majority of 3) makes the combined label 'story'.
     Single source of truth used by both determine_syntax_story and the logging in main.py.
     """
 
     _, pos_pct = count_pos(doc)
-    chunk_count, _, _ = analyze_noun_chunk(doc)
-
+    _, _, dep_pos_pct = dependency_pos_analysis(doc)
+    
     decisions = {
         'syntax_pron': 'story' if pos_pct.get('PRON', 0) > 11.5 else 'non-story',
-        'syntax_noun_chunk': 'story' if chunk_count > 65 else 'non-story',
         'syntax_propn': 'non-story' if pos_pct.get('PROPN', 0) > 3.0 else 'story',
+        'syntax_dep': 'story' if dep_pos_pct.get(('advmod', 'ADV'), 0)   > 5.3  else 'non-story',
     }
     votes = list(decisions.values()).count('story')
     decisions['syntax'] = 'story' if votes >= 2 else 'non-story'
@@ -102,27 +122,33 @@ def syntax_breakdown(doc):
 
 def determine_syntax_story(doc):
     """ Predicts story or non-story by majority vote over the syntactic sub-rules. """
+
     return syntax_breakdown(doc)['syntax']
+
+
 
 '''
 Part 3: run feature tests on dev dataset to identify patterns
 '''
 
-def main():    
+def main():   
+    """ Runs feature extraction functions from part 2 on dev dataset returns POS, dependency and sentence length feature results """ 
     df = pd.read_csv(DEV_CSV)
     
     story_pos = Counter()
     nonstory_pos = Counter()
     story_pos_pct = Counter()
     nonstory_pos_pct = Counter()
-
-    story_chunk_deps    = Counter()
-    nonstory_chunk_deps = Counter()
-    story_chunk_texts    = Counter()
-    nonstory_chunk_texts = Counter()
-    story_chunks    = []
-    nonstory_chunks = []
-
+    story_bigrams = Counter()
+    nonstory_bigrams = Counter()
+    story_trigrams = Counter()
+    nonstory_trigrams = Counter()
+    story_dep_counts = Counter()
+    nonstory_dep_counts = Counter()
+    story_dep_pos = Counter()
+    nonstory_dep_pos = Counter()
+    story_dep_pos_pct = Counter()
+    nonstory_dep_pos_pct = Counter()
     story_sent_lengths = []
     nonstory_sent_lengths = []
 
@@ -135,30 +161,38 @@ def main():
         doc = nlp(text)
 
         pos, pos_pct = count_pos(doc)
-        chunk_count, chunk_deps, chunk_texts = analyze_noun_chunk(doc)
+        bigrams, trigrams = pos_ngrams(doc) 
+        dep_counts, dep_pos, dep_pos_pct = dependency_pos_analysis(doc)
         length = avg_sent_length(doc)
+        
 
         # update counts of features for stories:
         if label == "story":
 
             stories += 1
             story_pos.update(pos)
-            story_chunks.append(chunk_count)
-            story_chunk_texts.update(chunk_texts)
-            story_chunk_deps.update(chunk_deps)
-            story_sent_lengths.append(length)
             story_pos_pct.update(pos_pct)
+            story_bigrams.update(bigrams)
+            story_trigrams.update(trigrams)
+            story_dep_counts.update(dep_counts)
+            story_dep_pos.update(dep_pos)
+            story_dep_pos_pct.update(dep_pos_pct)
+            story_sent_lengths.append(length)
+            
 
         # update counts of features for nonstories:
         else:
 
             nonstories += 1
             nonstory_pos.update(pos)
-            nonstory_chunks.append(chunk_count)
-            nonstory_chunk_deps.update(chunk_deps)
-            nonstory_chunk_texts.update(chunk_texts)
-            nonstory_sent_lengths.append(length)  
             nonstory_pos_pct.update(pos_pct)
+            nonstory_bigrams.update(bigrams)
+            nonstory_trigrams.update(trigrams)
+            nonstory_sent_lengths.append(length)  
+            nonstory_dep_counts.update(dep_counts)
+            nonstory_dep_pos.update(dep_pos)
+            nonstory_dep_pos_pct.update(dep_pos_pct)
+            
 
     #Accuracy: 
     rule1_correct = 0
@@ -171,13 +205,16 @@ def main():
         doc = nlp(row['content'])
         label = row['label']
         _, pos_pct = count_pos(doc)
-        chunk_count, _, _ = analyze_noun_chunk(doc)
+        _, _, dep_pos_pct = dependency_pos_analysis(doc)
+        
+
         if (pos_pct.get('PRON', 0) > 11.5) == (label == 'story'): 
             rule1_correct += 1
         if (pos_pct.get('PROPN', 0) <= 3.0) == (label == 'story'): 
             rule2_correct += 1
-        if (chunk_count > 65) == (label == 'story'): 
+        if (dep_pos_pct.get(('advmod', 'ADV'), 0) > 5.3) == (label == 'story'):
             rule3_correct += 1
+
         if determine_syntax_story(doc) == label: 
             voting_correct += 1
 
@@ -186,39 +223,51 @@ def main():
 
     # print results / feature
     print(" OBSERVATION FROM DEVELOPMENT DATA:\n POS TAGS\n")
-    print("Story: \n") 
-    for tag, count in story_pos.most_common(10):
+    print("Story POS tags: \n") 
+    for tag, count in story_pos.most_common(15):
         avg_pct = story_pos_pct[tag] / stories
-        print(f"{tag}: {count} ({avg_pct:.1f}%)")
+        print(f"{tag}:{count} ({avg_pct:.1f}%)")
     
-    print("Non-story:\n")
-    for tag, count in nonstory_pos.most_common(10):
+    print("Non-story POS tags:\n")
+    for tag, count in nonstory_pos.most_common(15):
         avg_pct = nonstory_pos_pct[tag] / nonstories
-        print(f"  {tag}: {count} ({avg_pct:.1f}%)")
+        print(f"{tag}: {count} ({avg_pct:.1f}%)")
 
+    print("\nBIGRAMS\n")
+    print("POS bigrams in Stories:")
+    total_story_bigrams = sum(story_bigrams.values())
+    for bigram, count in story_bigrams.most_common(10):
+        pct = count / total_story_bigrams * 100
+        print(f"{' '.join(bigram)}: {count} ({pct:.1f}%)")
 
-    print("\nNOUN CHUNKS\n")
-    print(f"Average noun chunks in Stories: "
-          f"{sum(story_chunks)/len(story_chunks)}\n")
-    print(f"Average noun chunks in Non- Stories: "
-          f"{sum(nonstory_chunks)/len(nonstory_chunks)}\n")
+    print("\nPOS bigrams in Non-Stories:")
+    total_nonstory_bigrams = sum(nonstory_bigrams.values())
+    for bigram, count in nonstory_bigrams.most_common(10):
+        pct = count / total_nonstory_bigrams * 100
+        print(f"{' '.join(bigram)}: {count} ({pct:.1f}%)")
+
+    print("\nPOS trigrams in Stories:")
+    total_story_trigrams = sum(story_trigrams.values())
+    for trigram, count in story_trigrams.most_common(10):
+        pct = count / total_story_trigrams * 100
+        print(f"{' '.join(trigram)}: {count} ({pct:.1f}%)")
+
+    print("\nPOS trigrams in Non-Stories:")
+    total_nonstory_trigrams = sum(nonstory_trigrams.values())
+    for trigram, count in nonstory_trigrams.most_common(10):
+        pct = count / total_nonstory_trigrams * 100
+        print(f"{' '.join(trigram)}: {count} ({pct:.1f}%)")
     
-    print("Top 10 multiword noun chunks in Stories:\n")
-    for chunk, count in story_chunk_texts.most_common(10):
-        print(f"{chunk}: {count}")
-    print("Top 10 multiword noun chunks in Non-Stories:\n")
-    for chunk, count in nonstory_chunk_texts.most_common(10):
-        print(f"{chunk}: {count}")
+    print("\nDEPENDENCY PARSING\n")
+    print("\nDEP + POS Story")
+    for pair, c in story_dep_pos.most_common(10):
+        avg_pct = story_dep_pos_pct[pair] / stories
+        print(f"{pair}: {c} ({avg_pct:.2f}%)")
 
-    print("\nNounchunk dependency roles Stories:")
-    for dep, count in story_chunk_deps.most_common():
-        pct = (count / sum(story_chunk_deps.values())) * 100
-        print(f"{dep}: {count} ({pct:.1f}%)")
-
-    print("\nNounchunk dependency roles in Non-Stories:")
-    for dep, count in nonstory_chunk_deps.most_common():
-        pct = (count / sum(nonstory_chunk_deps.values())) * 100
-        print(f"{dep}: {count} ({pct:.1f}%)")
+    print("\nDEP + POS Non-story")
+    for pair, c in nonstory_dep_pos.most_common(10):
+        avg_pct = nonstory_dep_pos_pct[pair] / nonstories
+        print(f"{pair}: {c} ({avg_pct:.2f}%)")
 
 
     print("\nSENTENCE LENGTH\n")
@@ -233,47 +282,42 @@ def main():
     print(f"""
     SYNTAX PATTERNS
 
-    1. POS:
+    POS:
     
-    - Pronoun (PRON) frequency
+    Rule 1 - Pronoun (PRON) frequency
     Observation: stories averaged {story_pos_pct['PRON']/stories:.1f}% PRON vs {nonstory_pos_pct['PRON']/nonstories:.1f}% for non-stories.
     Method:      spaCy token.pos_
     Rule:        If PRON% > 11.5% predict 'story'
     Accuracy:    {rule1_correct/total*100:.1f}%
-    Works when:  text is a first-person narrative for example using "I, me, we".
-    Fails when:  a non-story is conversational and also uses many pronouns.
+    Works when:  story is a first-person narrative for example using "I, me, we"
+    Fails when:  a non-story is conversational and can also use many pronouns
 
-    - Proper noun (PROPN) frequency
+    Rule 2 - Proper noun (PROPN) frequency
     Observation 2: non-stories averaged {nonstory_pos_pct['PROPN']/nonstories:.1f}% PROPN vs {story_pos_pct['PROPN']/stories:.1f}% for stories.
     Method:      spaCy token.pos_
     Rule:        If PROPN% > 3.0% predict 'non-story'
     Accuracy:    {rule2_correct/total*100:.1f}%
-    Works when:  text has many named entities (names, people, things)
-    Fails when:  a story mentions real names or places frequently.
+    Works when:  non-stpry is descriptive and has many named entities (names, people, things)
+    Fails when:  overall weak pattern, because stories use real names or places frequently too
 
-    2. DEPENDENCIES - not used!
-    Observation: see dependency distribution printed above.
-    Method:      spaCy token.dep_, doc.noun_chunks
-    Rule:        not included because distributions too similar between classes.
-    Accuracy:    N/A
-    Works when:  N/A
-    Fails when:  N/A
+    POS - Tag distributions, N-grams (Bigrams - Trigrams) - Not used. no pattern shows a large enough difference to make a reliable rule
 
-    3. Noun chunk count - used as rule
-    Observation: stories averaged {sum(story_chunks)/len(story_chunks):.1f} chunks vs {sum(nonstory_chunks)/len(nonstory_chunks):.1f} for non-stories.
-    Method:      spaCy doc.noun_chunks
-    Rule:        If the noun chunk count > 65 predict 'story'
+    DEPENDENCY: 
+   
+    Rule 3 - Adverbial modifier (advmod+ADV) frequency
+    Observation: stories averaged {story_dep_pos_pct[('advmod', 'ADV')]/stories:.2f}% advmod+ADV vs {nonstory_dep_pos_pct[('advmod', 'ADV')]/nonstories:.2f}% for non-stories.
+    Method:      spaCy token.dep_, token.pos_
+    Rule:        If advmod+ADV% > 5.3% predict 'story'
     Accuracy:    {rule3_correct/total*100:.1f}%
-    Works when:  longer narrative texts have more noun phrases.
-    Fails when:  a long non-story has equally many noun chunks.
+    Works when:  stories use narrative words like "then" and descriptive words.
+    Fails when:  nonstories could contain adverbs for descriptions in a non-narrative way too
 
-    4. Sentence length - not used!
+    SENTENCE LENGTH:  - not used! Differences where too small
+
+    Sentence length
     Observation: stories averaged {sum(story_sent_lengths)/len(story_sent_lengths):.1f} tokens/sent vs {sum(nonstory_sent_lengths)/len(nonstory_sent_lengths):.1f} for non-stories.
     Method:      spaCy doc.sents
-    Rule:        not included, difference too small.
-    Accuracy:    N/A
-    Works when:  N/A
-    Fails when:  N/A
+ 
 
     Combined voting accuracy (majority of 3 rules): {voting_correct/total*100:.1f}%
     """)
