@@ -60,7 +60,9 @@ def main():
 
     rows = []
 
-    df = pd.read_csv(TEST_CSV)
+    choice = input("Run on (d)ev or (t)est dataset? [d/t]: ").strip().lower()
+    csv_file = DEV_CSV if choice == 'd' else TEST_CSV
+    df = pd.read_csv(csv_file)
     total = len(df)
     count = 0
     for _, row in df.iterrows():

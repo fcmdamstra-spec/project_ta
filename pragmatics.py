@@ -118,6 +118,7 @@ def determine_pragmatic_story(text: str) -> str:
 # Main: calibration and pattern reporting
 
 DEV_CSV = "dev.csv"
+TEST_CSV = "test.csv"
 
 def main():
     """
@@ -141,7 +142,9 @@ def main():
     fp_shifts, fn_shifts = [], []
     fp_sents, fn_sents = [], []
 
-    df = pd.read_csv(DEV_CSV)
+    choice = input("Run on (d)ev or (t)est dataset? [d/t]: ").strip().lower()
+    csv_file = DEV_CSV if choice == 'd' else TEST_CSV
+    df = pd.read_csv(csv_file)
     for _, row in df.iterrows():
         text = row['content']
         label = row['label']
