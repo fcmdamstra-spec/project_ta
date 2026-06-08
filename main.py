@@ -14,15 +14,36 @@ nlp.add_pipe('coreferee')
 DEV_CSV = "dev.csv"
 LOG_CSV = "analysis_log.csv"
 
-# The 4 high-level labels: the final prediction plus the three analysis labels.
-OVERALL_COLUMNS = ['combined', 'syntax', 'semantics', 'pragmatic']
+# The high-level labels: three combined predictions plus the three analysis labels.
+OVERALL_COLUMNS = [
+    'combined_weighted', 'combined_unweighted', 'combined_modules',
+    'syntax', 'semantics', 'pragmatic',
+]
 
-# The 10 individual sub-rules. The combined label is a majority vote over these.
+# The 10 individual sub-rules. The combined label is a weighted vote over these.
 SUBRULE_COLUMNS = [
-    'syntax_pron', 'syntax_noun_chunk', 'syntax_propn',
+    'syntax_pron', 'syntax_propn', 'syntax_dep',
     'coref', 'ner', 'wordnet_noun', 'ambiguous',
     'emotional_range', 'sentiment_shift', 'sentence_count',
 ]
+
+# Weight (1-5) each rule gets when voting. Higher = more trusted.
+# Starting values reflect each rule's standalone accuracy; tune as needed.
+RULE_WEIGHTS = {
+    'syntax_pron': 3,
+    'syntax_propn': 1,
+    'syntax_dep': 3,
+    'coref': 5,
+    'ner': 2,
+    'wordnet_noun': 3,
+    'ambiguous': 5,
+    'emotional_range': 1,
+    'sentiment_shift': 2,
+    'sentence_count': 4,
+}
+
+# A text is a 'story' when at least half of the total weight votes 'story'.
+STORY_WEIGHT_THRESHOLD = sum(RULE_WEIGHTS.values()) / 2
 
 
 def main():
@@ -48,26 +69,39 @@ def main():
         sem = semantics_breakdown(doc)
         pra = pragmatics_breakdown(text)
 
-        # Combined label: majority vote over all 10 sub-rules (not the 3 analysis labels).
+        # Combined label: weighted vote over all 10 sub-rules (not the 3 analysis labels).
         subrules = [
-            syn['syntax_pron'], syn['syntax_noun_chunk'], syn['syntax_propn'],
+            syn['syntax_pron'], syn['syntax_propn'], syn['syntax_dep'],
             sem['coref'], sem['ner'], sem['wordnet_noun'], sem['ambiguous'],
             pra['emotional_range'], pra['sentiment_shift'], pra['sentence_count'],
         ]
-        story_votes = subrules.count('story')
-        # 5 or more of the 10 rules say 'story' -> story (a 5-5 tie counts as story)
-        combined = 'story' if story_votes >= 5 else 'non-story'
+        # 1: weighted vote over the 10 sub-rules (a tie counts as story).
+        story_weight = sum(
+            RULE_WEIGHTS[name]
+            for name, vote in zip(SUBRULE_COLUMNS, subrules)
+            if vote == 'story'
+        )
+        combined_weighted = 'story' if story_weight >= STORY_WEIGHT_THRESHOLD else 'non-story'
+
+        # 2: unweighted vote over the 10 sub-rules (5+ of 10 -> story).
+        combined_unweighted = 'story' if subrules.count('story') >= 5 else 'non-story'
+
+        # 3: unweighted vote over the 3 module labels (2+ of 3 -> story).
+        module_labels = [syn['syntax'], sem['semantics'], pra['pragmatic']]
+        combined_modules = 'story' if module_labels.count('story') >= 2 else 'non-story'
 
         rows.append({
             'text': text,
             'true_label': label,
-            'combined': combined,
+            'combined_weighted': combined_weighted,
+            'combined_unweighted': combined_unweighted,
+            'combined_modules': combined_modules,
             'syntax': syn['syntax'],
             'semantics': sem['semantics'],
             'pragmatic': pra['pragmatic'],
             'syntax_pron': syn['syntax_pron'],
-            'syntax_noun_chunk': syn['syntax_noun_chunk'],
             'syntax_propn': syn['syntax_propn'],
+            'syntax_dep': syn['syntax_dep'],
             'coref': sem['coref'],
             'ner': sem['ner'],
             'wordnet_noun': sem['wordnet_noun'],

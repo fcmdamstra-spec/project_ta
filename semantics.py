@@ -32,7 +32,7 @@ def coref_story_decision(doc):
     Each chain groups all mentions of the same entity.
     More chains → more entities being tracked → more likely a story.
 
-    Based on analysis of the data stories averaged 6.2 coreference chain length vs 4.3 for non stories
+    Based on analysis of the data stories averaged 6.2 coreference chains vs 4.3 for non stories
     Using this if the given doc contains 5 or more coreference chains it is predicted to be a story
     """
     if len(doc._.coref_chains) >= 5:
@@ -217,7 +217,7 @@ def main():
 SEMANTIC PATTERNS
 
 1. Coreference chains
-Observation: stories averaged {sum(story_coref)/stories:.1f} chains vs {sum(non_story_coref)/non_stories:.1f} for non-stories.
+Observation: In training data stories averaged {sum(story_coref)/stories:.1f} chains vs {sum(non_story_coref)/non_stories:.1f} for non-stories.
 Method:      coreferee -> doc._.coref_chains (number of coreference chains)
 Rule:        5 or more chains -> predict 'story'.
 Accuracy:    {round(coref_correct/total*100, 1)}%
