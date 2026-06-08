@@ -6,7 +6,7 @@ Classifies Reddit posts as 'story' or 'non-story' using three pragmatic features
 based on sentence-level sentiment analysis (VADER via asent):
 
 1. Emotional range = difference between the most positive and negative sentence
-2. Sentiment shift = number of times tone changes direction across sentences
+2. Sentiment shift = number of times tone changes across sentences
 3. Sentence count = stories tend to be longer and use more sentences
 
 Each feature produces one rule. The three rules vote: 2 or more votes -> predicted story
@@ -18,8 +18,8 @@ Observation from dev data:
 """
 
 import spacy
-import asent 
 import pandas as pd
+import asent
 
 nlp_sentiment = spacy.blank('en')
 nlp_sentiment.add_pipe('sentencizer')
@@ -196,7 +196,7 @@ def main():
 
     with open("pragmatic_patterns.txt", "w", encoding="utf-8") as f:
         f.write(f"""
-PRAGMATIC PATTERNS
+Pragmatic patterns
 
 1. Emotional range
 Observation: stories averaged 1.14 vs 1.04 for non-stories.
