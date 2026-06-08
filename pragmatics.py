@@ -90,19 +90,29 @@ def sentence_count_decision(text: str) -> str:
 
 # Combined decision (voting)
 
+def pragmatics_breakdown(text: str) -> dict:
+    """
+    Returns each pragmatic sub-rule decision plus the combined pragmatic label.
+    The 3 rules vote; 2 or more 'story' votes makes the combined label 'story'.
+    Single source of truth used by both determine_pragmatic_story and the logging
+    in main.py.
+    """
+    decisions = {
+        'emotional_range': emotional_range_decision(text),
+        'sentiment_shift': sentiment_shift_decision(text),
+        'sentence_count': sentence_count_decision(text),
+    }
+    votes = list(decisions.values()).count('story')
+    decisions['pragmatic'] = 'story' if votes >= 2 else 'non-story'
+    return decisions
+
+
 def determine_pragmatic_story(text: str) -> str:
     """
     Combine all three pragmatic rules using majority voting.
     Two or more votes for 'story' -> predict 'story', otherwise 'non-story'.
     """
-    votes = 0
-    if emotional_range_decision(text) == 'story':
-        votes += 1
-    if sentiment_shift_decision(text) == 'story':
-        votes += 1
-    if sentence_count_decision(text) == 'story':
-        votes += 1
-    return 'story' if votes >= 2 else 'non-story'
+    return pragmatics_breakdown(text)['pragmatic']
 
 
 # Main: calibration and pattern reporting
