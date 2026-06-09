@@ -1,5 +1,5 @@
 '''
-This file runs the pipeline of the different linguistics fields used to determine wheter something is a story or not
+This file runs the pipeline of the different linguistics fields used to determine wheter something is a story or not.
 '''
 
 import pandas as pd
