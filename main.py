@@ -13,6 +13,7 @@ nlp.add_pipe('coreferee')
 
 DEV_CSV = "dev.csv"
 LOG_CSV = "analysis_log.csv"
+TEST_CSV = 'test.csv'
 
 # The high-level labels: three combined predictions plus the three analysis labels.
 OVERALL_COLUMNS = [
@@ -59,8 +60,14 @@ def main():
 
     rows = []
 
-    df = pd.read_csv(DEV_CSV)
+    choice = input("Run on (d)ev or (t)est dataset? [d/t]: ").strip().lower()
+    csv_file = DEV_CSV if choice == 'd' else TEST_CSV
+    df = pd.read_csv(csv_file)
+    total = len(df)
+    count = 0
     for _, row in df.iterrows():
+        count += 1
+        print(f'processing text {count} of {total}')
         text  = row['content']
         label = row['label']
         doc = nlp(text)
@@ -116,16 +123,20 @@ def main():
     print(f'wrote {len(log)} rows to {LOG_CSV}\n')
 
     # Accuracy of the high-level labels against the true label.
-    print('--- Overall ---')
+    print('Overall:')
     for col in OVERALL_COLUMNS:
         accuracy = (log[col] == log['true_label']).mean()
         print(f'{col + ":":<20}{round(accuracy * 100, 1)}%')
 
     # Accuracy of each individual sub-rule against the true label.
-    print('\n--- Sub-rules ---')
+    print('\nSub-rules:')
     for col in SUBRULE_COLUMNS:
         accuracy = (log[col] == log['true_label']).mean()
         print(f'{col + ":":<20}{round(accuracy * 100, 1)}%')
+
+    # The combined_weighted vote is the model we actually use.
+    final_accuracy = (log['combined_weighted'] == log['true_label']).mean()
+    print(f'\nFinal prediction accuracy (combined_weighted): {round(final_accuracy * 100, 1)}% \n')
 
 
 if __name__ == "__main__":
