@@ -3,7 +3,7 @@ Part 1 - Syntactical Analysis
 
 Created by: Fleur, S4109287
 
-Classifies Reddit posts as 'story' or 'non-story' using four syntactic features:
+Classifies Reddit posts as 'story' or 'non-story' using three syntactic features:
   1. Part of Speech (POS) - tagging (frequency/ratio and n-grams): Spacy token.pos_ 
   2. Syntactic Parsing (dependency): Spacy token.dep_, token.pos_
   3. Sentence length
@@ -58,8 +58,8 @@ def pos_ngrams(doc):
 ### 2: DEPENDENCY PARSING
 def dependency_pos_analysis(doc):
     """ Returns Descriptive analysis of dependency + POS combinations
-     1. dep_counts: raw dependency frequencies
-     2. dep_pos: (dependency, POS) combinations
+     - dep_counts: raw dependency frequencies
+     - dep_pos: (dependency, POS) combinations, dep_pos_pct: frequency percentage
     """
 
     dep_counts = Counter()
@@ -113,7 +113,7 @@ def syntax_breakdown(doc):
     decisions = {
         'syntax_pron': 'story' if pos_pct.get('PRON', 0) > 11.5 else 'non-story',
         'syntax_propn': 'non-story' if pos_pct.get('PROPN', 0) > 3.0 else 'story',
-        'syntax_dep': 'story' if dep_pos_pct.get(('advmod', 'ADV'), 0)   > 5.3  else 'non-story',
+        'syntax_dep': 'story' if dep_pos_pct.get(('advmod', 'ADV'), 0) > 5.3  else 'non-story',
     }
     votes = list(decisions.values()).count('story')
     decisions['syntax'] = 'story' if votes >= 2 else 'non-story'
@@ -312,7 +312,7 @@ def main():
     Works when:  stories use narrative words like "then" and descriptive words.
     Fails when:  nonstories could contain adverbs for descriptions in a non-narrative way too
 
-    SENTENCE LENGTH:  - not used! Differences where too small
+    SENTENCE LENGTH:  - not used! Differences were too small
 
     Sentence length
     Observation: stories averaged {sum(story_sent_lengths)/len(story_sent_lengths):.1f} tokens/sent vs {sum(nonstory_sent_lengths)/len(nonstory_sent_lengths):.1f} for non-stories.
