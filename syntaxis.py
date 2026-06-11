@@ -22,6 +22,7 @@ import sys
 
 nlp = spacy.load('en_core_web_sm')
 DEV_CSV = "dev.csv"
+TEST_CSV = "test.csv"
 
 
 ''' 
@@ -132,8 +133,10 @@ Part 3: run feature tests on dev dataset to identify patterns
 '''
 
 def main():   
-    """ Runs feature extraction functions from part 2 on dev dataset returns POS, dependency and sentence length feature results """ 
-    df = pd.read_csv(DEV_CSV)
+    """ Runs feature extraction functions from part 2 on dev dataset returns POS, dependency and sentence length feature results """
+    choice = input("Run on (d)ev or (t)est dataset? [d/t]: ").strip().lower()
+    csv_file = DEV_CSV if choice == 'd' else TEST_CSV
+    df = pd.read_csv(csv_file)
     
     story_pos = Counter()
     nonstory_pos = Counter()
