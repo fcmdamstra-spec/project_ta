@@ -42,8 +42,6 @@ def get_sentence_sentiments(text: str) -> list[float]:
 def emotional_range(sent_scores: list[float]) -> float:
     """
     The difference between the highest and lowest sentence-level compound scores.
-    A larger range indicates more emotional variety: the text swings between
-    positive and negative, which is characteristic of narrative stories.
     """
     if len(sent_scores) < 2:
         return 0.0
